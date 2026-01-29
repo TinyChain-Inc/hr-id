@@ -9,7 +9,7 @@ impl<D: Digest> Hash<D> for Id {
     }
 }
 
-impl<'a, D: Digest> Hash<D> for &'a Id {
+impl<D: Digest> Hash<D> for &Id {
     fn hash(self) -> Output<D> {
         Hash::<D>::hash(self.as_str())
     }

@@ -28,9 +28,8 @@ use std::ops::Deref;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use derive_more::*;
+use derive_more::Display;
 use get_size::GetSize;
-use regex::Regex;
 use safecast::TryCastFrom;
 
 #[cfg(feature = "stream")]
@@ -131,7 +130,7 @@ impl Id {
 impl GetSize for Id {
     fn get_size(&self) -> usize {
         // err on the side of caution in case there is only one reference to this Id
-        size_of::<Arc<str>>() + self.inner.as_bytes().len()
+        size_of::<Arc<str>>() + self.inner.len()
     }
 }
 
@@ -257,11 +256,10 @@ fn validate_id(id: &str) -> Result<(), ParseError> {
         return Err("cannot construct an empty Id".into());
     }
 
-    let mut invalid_chars = id.chars().filter(|c| (*c as u8) < 32u8);
-    if let Some(invalid) = invalid_chars.next() {
+    if let Some(invalid) = id.chars().find(|c| (*c as u32) < 0x20) {
         return Err(format!(
-            "Id {} contains ASCII control characters {}",
-            id, invalid as u8,
+            "Id {} contains an ASCII control character {}",
+            id, invalid as u32
         )
         .into());
     }
@@ -272,8 +270,12 @@ fn validate_id(id: &str) -> Result<(), ParseError> {
         }
     }
 
-    if let Some(w) = Regex::new(r"\s").expect("whitespace regex").find(id) {
-        return Err(format!("Id {} is not allowed to contain whitespace {:?}", id, w).into());
+    if let Some((idx, _)) = id.char_indices().find(|(_, c)| c.is_whitespace()) {
+        return Err(format!(
+            "Id {} is not allowed to contain whitespace at byte {}",
+            id, idx
+        )
+        .into());
     }
 
     Ok(())
