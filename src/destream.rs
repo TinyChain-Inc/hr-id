@@ -1,12 +1,10 @@
 use std::str::FromStr;
 
-use async_trait::async_trait;
 use destream::de::{self, Decoder, FromStream};
 use destream::en::{Encoder, IntoStream, ToStream};
 
 use super::Id;
 
-#[async_trait]
 impl FromStream for Id {
     type Context = ();
 
