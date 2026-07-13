@@ -14,7 +14,7 @@ hash = ["async-hash", "hex"]
 stream = ["destream"]
 
 [dependencies]
-async-hash = { version = "~0.5.4", optional = true }
+async-hash = { path = "../async-hash", version = "0.6", optional = true }
 derive_more = { version = "1.0", features=["display"] }
 destream = { path = "../destream", version = "0.10.1", features = [], optional = true }
 get-size = "0.1"
