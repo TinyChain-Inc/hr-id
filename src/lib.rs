@@ -128,9 +128,9 @@ impl Id {
 }
 
 impl GetSize for Id {
-    fn get_size(&self) -> usize {
-        // err on the side of caution in case there is only one reference to this Id
-        size_of::<Arc<str>>() + self.inner.len()
+    fn get_heap_size(&self) -> usize {
+        // Charge shared storage in full, including the Arc allocation header.
+        2 * size_of::<usize>() + self.inner.len()
     }
 }
 
