@@ -252,6 +252,10 @@ impl fmt::Display for Id {
 }
 
 fn validate_id(id: &str) -> Result<(), ParseError> {
+    if id == "." || id == ".." || id.contains('\\') {
+        return Err("Id cannot be a traversal component".into());
+    }
+
     if id.is_empty() {
         return Err("cannot construct an empty Id".into());
     }
