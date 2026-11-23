@@ -22,6 +22,6 @@ impl<'en> ToStream<'en> for Id {
 
 impl<'en> IntoStream<'en> for Id {
     fn into_stream<E: Encoder<'en>>(self, e: E) -> Result<E::Ok, E::Error> {
-        e.encode_str(self.as_str())
+        e.encode_str(self.into_inner())
     }
 }

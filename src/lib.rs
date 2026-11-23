@@ -28,7 +28,6 @@ use std::ops::Deref;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use derive_more::Display;
 use get_size::GetSize;
 use safecast::TryCastFrom;
 
@@ -46,23 +45,67 @@ pub const RESERVED_CHARS: [&str; 21] = [
 ];
 
 /// An error encountered while parsing an [`Id`].
-#[derive(Debug, Display)]
-#[display("{}", msg)]
-pub struct ParseError {
-    msg: Arc<str>,
+#[derive(Debug)]
+pub struct ParseError(ErrorKind);
+
+#[derive(Debug, PartialEq)]
+enum ErrorKind {
+    Empty,
+    Traversal {
+        offset: usize,
+    },
+    Control {
+        offset: usize,
+        value: u32,
+    },
+    Reserved {
+        offset: usize,
+        pattern: &'static str,
+    },
+    Whitespace {
+        offset: usize,
+    },
+    Message(String),
+}
+
+impl fmt::Display for ParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.0 {
+            ErrorKind::Empty => f.write_str("cannot construct an empty Id"),
+            ErrorKind::Traversal { offset } => {
+                write!(f, "Id contains a traversal component at byte {offset}")
+            }
+            ErrorKind::Control { offset, value } => {
+                write!(
+                    f,
+                    "Id contains ASCII control character {value} at byte {offset}"
+                )
+            }
+            ErrorKind::Reserved { offset, pattern } => {
+                write!(
+                    f,
+                    "Id contains disallowed pattern {pattern} at byte {offset}"
+                )
+            }
+            ErrorKind::Whitespace { offset } => {
+                write!(f, "Id contains whitespace at byte {offset}")
+            }
+            ErrorKind::Message(message) => f.write_str(message),
+        }
+    }
 }
 
 impl std::error::Error for ParseError {}
 
 impl From<String> for ParseError {
     fn from(msg: String) -> Self {
-        Self { msg: msg.into() }
+        Self(ErrorKind::Message(msg))
     }
 }
 
 impl From<&str> for ParseError {
     fn from(msg: &str) -> Self {
-        Self { msg: msg.into() }
+        msg.to_owned().into()
     }
 }
 
@@ -252,35 +295,65 @@ impl fmt::Display for Id {
 }
 
 fn validate_id(id: &str) -> Result<(), ParseError> {
-    if id == "." || id == ".." || id.contains('\\') {
-        return Err("Id cannot be a traversal component".into());
+    if id == "." || id == ".." {
+        return Err(ParseError(ErrorKind::Traversal { offset: 0 }));
+    }
+
+    if let Some(offset) = id.find('\\') {
+        return Err(ParseError(ErrorKind::Traversal { offset }));
     }
 
     if id.is_empty() {
-        return Err("cannot construct an empty Id".into());
+        return Err(ParseError(ErrorKind::Empty));
     }
 
-    if let Some(invalid) = id.chars().find(|c| (*c as u32) < 0x20) {
-        return Err(format!(
-            "Id {} contains an ASCII control character {}",
-            id, invalid as u32
-        )
-        .into());
+    if let Some((offset, invalid)) = id.char_indices().find(|(_, c)| (*c as u32) < 0x20) {
+        return Err(ParseError(ErrorKind::Control {
+            offset,
+            value: invalid as u32,
+        }));
     }
 
     for pattern in &RESERVED_CHARS {
-        if id.contains(pattern) {
-            return Err(format!("Id {} contains disallowed pattern {}", id, pattern).into());
+        if let Some(offset) = id.find(pattern) {
+            return Err(ParseError(ErrorKind::Reserved { offset, pattern }));
         }
     }
 
-    if let Some((idx, _)) = id.char_indices().find(|(_, c)| c.is_whitespace()) {
-        return Err(format!(
-            "Id {} is not allowed to contain whitespace at byte {}",
-            id, idx
-        )
-        .into());
+    if let Some((offset, _)) = id.char_indices().find(|(_, c)| c.is_whitespace()) {
+        return Err(ParseError(ErrorKind::Whitespace { offset }));
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ErrorKind, Id};
+
+    #[test]
+    fn identifier_failures_preserve_reason_and_byte_position() {
+        for (text, expected) in [
+            ("", ErrorKind::Empty),
+            ("..", ErrorKind::Traversal { offset: 0 }),
+            ("a\\b", ErrorKind::Traversal { offset: 1 }),
+            (
+                "λ\n",
+                ErrorKind::Control {
+                    offset: 2,
+                    value: 10,
+                },
+            ),
+            (
+                "a/b",
+                ErrorKind::Reserved {
+                    offset: 1,
+                    pattern: "/",
+                },
+            ),
+            ("λ name", ErrorKind::Whitespace { offset: 2 }),
+        ] {
+            assert_eq!(text.parse::<Id>().unwrap_err().0, expected);
+        }
+    }
 }
