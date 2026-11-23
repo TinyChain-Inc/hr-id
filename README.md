@@ -9,3 +9,7 @@ A human-readable unique ID for Rust which:
  - implements `From<Uuid>`
  - implements `Serialize` and `Deserialize` with the `serde` feature
  - implements `ToStream` and `FromStream` with the `destream` feature
+
+`ParseError` retains the validation reason and byte position without copying the
+input or allocating a diagnostic. `Display` formats that information when an
+error is reported. Explicit custom-message conversions retain owned messages.
